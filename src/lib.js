@@ -21,8 +21,8 @@ export const ASSESS_LABEL = { nao_iniciada: 'Não iniciada', em_andamento: 'Em a
 export async function all(build) {
   let out = [], from = 0;
   for (;;) {
-    const { data, error } = await build().range(from, from + 999);
-    if (error) throw error;
+    const { data, error } = await build().range(from, from + 999).abortSignal(AbortSignal.timeout(25000));
+    if (error) throw new Error(/abort|timed? ?out/i.test(error.message) ? 'Tempo esgotado ao consultar o banco (25 s). Atualize a página e tente de novo.' : error.message);
     out = out.concat(data);
     if (data.length < 1000) return out;
     from += 1000;
@@ -77,8 +77,8 @@ export function bindEvActions(root, after) {
 let _cfg;
 export async function settings(force) {
   if (!_cfg || force) {
-    const { data, error } = await esg().from('settings').select('key,value');
-    if (error) throw error;
+    const { data, error } = await esg().from('settings').select('key,value').abortSignal(AbortSignal.timeout(25000));
+    if (error) throw new Error(/abort|timed? ?out/i.test(error.message) ? 'Tempo esgotado ao consultar o banco (25 s). Atualize a página e tente de novo.' : error.message);
     _cfg = Object.fromEntries(data.map((r) => [r.key, r.value]));
   }
   return _cfg;

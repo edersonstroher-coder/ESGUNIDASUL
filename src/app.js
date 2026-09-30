@@ -24,7 +24,11 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 // setTimeout evita travar o cliente ao chamar o Supabase dentro do próprio callback de autenticação
-sb.auth.onAuthStateChange((_evt, session) => setTimeout(() => boot(session), 0));
+// Renovação de token / voltar para a aba dispara eventos de login: se é o mesmo usuário, NÃO recarrega a tela.
+sb.auth.onAuthStateChange((evt, session) => setTimeout(() => {
+  if (session && profile && session.user.id === profile.id && evt !== 'SIGNED_OUT') return;
+  boot(session);
+}, 0));
 
 async function boot(session) {
   window.__ready = true; $('#boot')?.remove(); $('#fatal')?.remove();
@@ -52,7 +56,8 @@ function renderMenu() {
 window.addEventListener('hashchange', () => { if (profile) { renderMenu(); route(); } });
 function route() {
   const [r, arg] = (location.hash.replace('#/', '') || 'dashboard').split('/');
-  const V = $('#view');
+  const V = document.createElement('div');   // contêiner novo a cada navegação: telas lentas de outra aba não sobrescrevem a atual
+  $('#view').replaceChildren(V);
   const map = {
     dashboard: () => A.dashboard(V), fornecedores: () => viewSuppliers(), fornecedor: () => A.supplierPage(V, arg),
     importar: () => (profile.role === 'admin' ? viewImport() : viewSuppliers()), avaliacoes: () => A.assessments(V), avaliacao: () => A.assessmentPage(V, arg),
@@ -82,6 +87,7 @@ async function loadSuppliers() {
     req = req.or(['supplier_code.ilike.%' + q + '%', 'company_name.ilike.%' + q + '%', 'trade_name.ilike.%' + q + '%'].concat(d ? ['cnpj.ilike.%' + d + '%'] : []).join(','));
   }
   const { data, error } = await req;
+  if (!$('#list')) return;
   if (error) { $('#list').textContent = 'Erro ao carregar: ' + error.message; return; }
   $('#list').innerHTML = data.length ? `<table class="tbl"><thead><tr><th>Código</th><th>CNPJ</th><th>Razão social</th><th>E-mail</th><th>Categoria</th></tr></thead><tbody>` +
     data.map((s) => `<tr><td>${esc(s.supplier_code)}</td><td>${esc(s.cnpj)}</td><td><a href="#/fornecedor/${s.id}">${esc(s.company_name)}</a> ${s.is_demo ? '<span class="tag">DEMO</span>' : ''}<br><small>${esc(s.trade_name)}</small></td><td>${esc(s.email)}</td><td>${esc(s.category)}</td></tr>`).join('') +

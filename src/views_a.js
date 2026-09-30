@@ -17,10 +17,12 @@ export async function dashboard(V) {
       all(() => esg().from('campaigns').select('id,name,end_date,status').order('id')), settings()]);
     D = { sup, hist, evs, pend, ass, camps, cfg };
   } catch (e) { V.innerHTML = errBox(e); return; }
+  if (!V.isConnected) return;   // o usuário já trocou de tela
   const list = [...D.sup.values()];
   const F = { demo: !list.some((s) => !s.is_demo), year: '', buyer: '', cat: '', grp: '' };
 
   const draw = () => {
+    if (!V.isConnected) return;
     const S = list.filter((s) => (F.demo || !s.is_demo) && (!F.cat || s.category === F.cat) && (!F.grp || s.supplier_group === F.grp));
     const ids = new Set(S.map((s) => s.id));
     const H = D.hist.filter((h) => ids.has(h.supplier_id));
