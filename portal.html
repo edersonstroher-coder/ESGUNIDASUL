@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Questionário ESG — Unidasul</title>
+<style>
+:root{--paper:#f5f6f3;--card:#fff;--ink:#16241d;--muted:#5d6b63;--line:#dde2db;--brand:#1f5d46;--bad:#b3261e;--ok:#1f7a4d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+header{background:var(--brand);color:#fff;padding:14px 16px}
+header b{font-size:17px}header small{display:block;opacity:.85}
+main{max-width:720px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.bar{height:10px;background:#dfe6e0;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--brand);transition:width .3s}
+.steps{display:flex;gap:4px;margin:10px 0;flex-wrap:wrap}.steps span{font-size:12px;padding:3px 8px;border-radius:99px;background:#e6ebe6;color:var(--muted)}.steps span.on{background:var(--brand);color:#fff}
+label{display:block;font-weight:600;margin:10px 0 4px;font-size:14px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font:inherit;background:#fff}
+.opts{display:flex;gap:8px;flex-wrap:wrap}.opts label{margin:0;font-weight:500;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+.opts input{width:auto}.opts label.sel{border-color:var(--brand);background:#e8f2ec}
+.btn{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:12px 18px;font-weight:600;cursor:pointer;font-size:16px}.btn.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}.btn:disabled{opacity:.5}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:8px}
+.err{color:var(--bad)}.ok{color:var(--ok)}.sub{color:var(--muted);font-size:14px}
+.ev{font-size:14px;padding:6px 0;border-top:1px dashed var(--line)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header><b>Unidasul · Programa ESG de Fornecedores</b><small id="who"></small></header>
+<main id="root"><div class="card">Carregando…</div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script type="module" src="./src/portal.js"></script>
+</body>
+</html>

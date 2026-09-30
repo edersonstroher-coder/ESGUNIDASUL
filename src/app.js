@@ -1,19 +1,18 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { sb, core, $, esc, state } from './lib.js';
 import { normCnpj, isValidCnpj } from './cnpj.js';
-
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const core = () => sb.schema('core');
-const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import * as A from './views_a.js';
+import * as B from './views_b.js';
+import * as C from './views_c.js';
 
 let profile = null;
 
 const MENU = [
-  ['dashboard', 'Dashboard', 0], ['fornecedores', 'Fornecedores', 1], ['importar', 'Importar fornecedores', 1, 'admin'],
-  ['campanhas', 'Campanhas ESG', 0], ['questionarios', 'Questionários', 0], ['avaliacoes', 'Avaliações', 0],
-  ['evidencias', 'Evidências', 0], ['kpis', 'KPIs ESG', 0], ['pendencias', 'Pendências', 0],
-  ['relatorios', 'Relatórios', 0], ['destaques', 'Destaques ESG', 0], ['historico', 'Histórico', 0], ['config', 'Configurações', 0],
+  ['dashboard', 'Dashboard'], ['fornecedores', 'Fornecedores'], ['importar', 'Importar fornecedores', 'admin'],
+  ['campanhas', 'Campanhas ESG'], ['questionarios', 'Questionários'], ['avaliacoes', 'Avaliações'],
+  ['evidencias', 'Evidências'], ['kpis', 'KPIs ESG'], ['pendencias', 'Pendências'],
+  ['relatorios', 'Relatórios'], ['destaques', 'Destaques ESG'], ['historico', 'Histórico'], ['config', 'Configurações', 'admin'],
 ];
+const ALIAS = { fornecedor: 'fornecedores', avaliacao: 'avaliacoes', relatorio: 'relatorios' };
 
 /* ---------- autenticação ---------- */
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -32,7 +31,7 @@ async function boot(session) {
     $('#loginErr').textContent = 'Seu usuário não tem perfil ativo. Peça acesso a um administrador.';
     await sb.auth.signOut(); return;
   }
-  profile = data;
+  profile = data; state.profile = data;
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderMenu(); route();
 }
@@ -40,18 +39,25 @@ sb.auth.getSession().then(({ data }) => { if (!data.session) boot(null); });
 
 /* ---------- menu e rotas ---------- */
 function renderMenu() {
-  const cur = location.hash.replace('#/', '') || 'fornecedores';
+  const seg = (location.hash.replace('#/', '') || 'dashboard').split('/')[0];
+  const cur = ALIAS[seg] || seg;
   $('#menu').innerHTML = '<div class="logo">Unidasul<small>ESG Fornecedores</small></div>' +
-    MENU.filter((m) => !m[3] || m[3] === profile.role).map(([id, label, on]) =>
-      on ? `<a href="#/${id}" class="${cur === id ? 'on' : ''}">${label}</a>` : `<a class="soon" aria-disabled="true">${label}</a>`).join('') +
+    MENU.filter((m) => !m[2] || m[2] === profile.role).map(([id, label]) => `<a href="#/${id}" class="${cur === id ? 'on' : ''}">${label}</a>`).join('') +
     `<div class="who">${esc(profile.full_name || 'Usuário')}<br>${esc(profile.role)}<br><button id="out">Sair</button></div>`;
   $('#out').onclick = () => sb.auth.signOut();
 }
 window.addEventListener('hashchange', () => { if (profile) { renderMenu(); route(); } });
 function route() {
-  const r = location.hash.replace('#/', '') || 'fornecedores';
-  if (r === 'importar' && profile.role === 'admin') return viewImport();
-  return viewSuppliers();
+  const [r, arg] = (location.hash.replace('#/', '') || 'dashboard').split('/');
+  const V = $('#view');
+  const map = {
+    dashboard: () => A.dashboard(V), fornecedores: () => viewSuppliers(), fornecedor: () => A.supplierPage(V, arg),
+    importar: () => (profile.role === 'admin' ? viewImport() : viewSuppliers()), avaliacoes: () => A.assessments(V), avaliacao: () => A.assessmentPage(V, arg),
+    historico: () => A.history(V, arg), relatorios: () => A.reportsList(V), relatorio: () => A.report(V, arg),
+    kpis: () => B.kpis(V), questionarios: () => B.questions(V), config: () => B.config(V), destaques: () => B.highlights(V),
+    campanhas: () => C.campaigns(V, arg), evidencias: () => C.evidences(V), pendencias: () => C.pendencias(V),
+  };
+  (map[r] || map.dashboard)();
 }
 
 /* ---------- fornecedores ---------- */
@@ -64,7 +70,7 @@ function viewSuppliers() {
 }
 async function loadSuppliers() {
   const q = $('#q').value.trim().replace(/[,()%]/g, ' ');
-  let req = core().from('suppliers').select('supplier_code,cnpj,company_name,trade_name,buyer,category,is_demo')
+  let req = core().from('suppliers').select('id,supplier_code,cnpj,company_name,trade_name,buyer,category,is_demo')
     .is('deleted_at', null).order('company_name').limit(200);
   if (q) {
     const d = q.replace(/\D/g, '');
@@ -73,7 +79,7 @@ async function loadSuppliers() {
   const { data, error } = await req;
   if (error) { $('#list').textContent = 'Erro ao carregar: ' + error.message; return; }
   $('#list').innerHTML = data.length ? `<table class="tbl"><thead><tr><th>Código</th><th>CNPJ</th><th>Razão social</th><th>Comprador</th><th>Categoria</th></tr></thead><tbody>` +
-    data.map((s) => `<tr><td>${esc(s.supplier_code)}</td><td>${esc(s.cnpj)}</td><td>${esc(s.company_name)} ${s.is_demo ? '<span class="tag">DEMO</span>' : ''}<br><small>${esc(s.trade_name)}</small></td><td>${esc(s.buyer)}</td><td>${esc(s.category)}</td></tr>`).join('') +
+    data.map((s) => `<tr><td>${esc(s.supplier_code)}</td><td>${esc(s.cnpj)}</td><td><a href="#/fornecedor/${s.id}">${esc(s.company_name)}</a> ${s.is_demo ? '<span class="tag">DEMO</span>' : ''}<br><small>${esc(s.trade_name)}</small></td><td>${esc(s.buyer)}</td><td>${esc(s.category)}</td></tr>`).join('') +
     '</tbody></table>' + (data.length === 200 ? '<p class="sub">Mostrando os 200 primeiros. Refine a busca.</p>' : '')
     : 'Nenhum fornecedor encontrado. Use "Importar fornecedores" para carregar sua base.';
 }

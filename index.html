@@ -49,7 +49,10 @@ main h2{margin:0 0 4px;font-size:22px}
 .stat{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff}
 .stat b{display:block;font-size:22px}
 .stat.ok b{color:var(--ok)}.stat.warn b{color:var(--warn)}.stat.bad b{color:var(--bad)}
+textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font:inherit}
+a{color:var(--brand)}a.btn{display:inline-block;text-decoration:none}
 .tag{font-size:11px;padding:2px 7px;border-radius:999px;background:#fbeed0;color:#7a5200;font-weight:600}
+@media print{nav,.noprint{display:none!important}#app{display:block}main{padding:0}.printonly{display:block!important}body{background:#fff}}
 @media(max-width:760px){#app{grid-template-columns:1fr}nav{flex-direction:row;flex-wrap:wrap;padding:10px}nav .logo{width:100%;padding-bottom:6px}nav .who{margin:0;width:100%}main{padding:14px}}
 </style>
 </head>
@@ -72,6 +75,7 @@ main h2{margin:0 0 4px;font-size:22px}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script type="module" src="./src/app.js"></script>
 </body>
 </html>

@@ -142,7 +142,7 @@ create table if not exists esg.scores (       -- snapshots imutáveis: históric
   assessment_id uuid not null references esg.assessments(id),
   score_e numeric, score_s numeric, score_g numeric, score_total numeric,
   cov_questionnaire numeric, cov_evidence numeric, cov_validated numeric,
-  config_snapshot jsonb, calculated_at timestamptz default now()
+  config_snapshot jsonb, calculated_at timestamptz default clock_timestamp()
 );
 create index if not exists scores_assess_idx on esg.scores(assessment_id, calculated_at desc);
 
@@ -198,7 +198,9 @@ begin
 
   select max(sc) filter (where dimension='E'), max(sc) filter (where dimension='S'), max(sc) filter (where dimension='G')
   into e, s, g from (
-    select dimension, least(100, 100 * sum(pt*weight) / nullif(sum(weight) filter (where pt is not null), 0)) as sc
+    select dimension,
+           case when sum(weight) filter (where pt is not null) > 0   -- sem resposta aplicável => NULL (least() ignoraria o NULL e daria 100)
+                then least(100, 100 * sum(pt*weight) / sum(weight) filter (where pt is not null)) end as sc
     from (
       select dimension, weight,
         case when state in ('sim','nao','parcial')
