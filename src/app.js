@@ -23,9 +23,11 @@ $('#loginForm').addEventListener('submit', async (e) => {
   if (error) $('#loginErr').textContent = 'E-mail ou senha incorretos.';
 });
 
-sb.auth.onAuthStateChange((_evt, session) => boot(session));
+// setTimeout evita travar o cliente ao chamar o Supabase dentro do próprio callback de autenticação
+sb.auth.onAuthStateChange((_evt, session) => setTimeout(() => boot(session), 0));
 
 async function boot(session) {
+  window.__ready = true; $('#boot')?.remove(); $('#fatal')?.remove();
   if (!session) { profile = null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); return; }
   const { data, error } = await core().from('profiles').select('*').eq('id', session.user.id).maybeSingle();
   if (error || !data || !data.active) {

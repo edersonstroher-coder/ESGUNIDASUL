@@ -29,7 +29,8 @@ input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);borde
 <body>
 <header><b>Unidasul · Programa ESG de Fornecedores</b><small id="who"></small></header>
 <main id="root"><div class="card">Carregando…</div></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="./vendor/supabase.js"></script>
+<script>if(!window.supabase)document.getElementById("root").innerHTML='<div class="card err">Não foi possível carregar a página. Tente atualizar (Ctrl+F5) ou abra o link em outra rede.</div>';</script>
 <script type="module" src="./src/portal.js"></script>
 </body>
 </html>

@@ -57,6 +57,14 @@ a{color:var(--brand)}a.btn{display:inline-block;text-decoration:none}
 </style>
 </head>
 <body>
+<div id="boot" style="padding:40px 16px;text-align:center;color:#5d6b63">Carregando…</div>
+<div id="fatal" style="display:none;max-width:480px;margin:40px auto;padding:16px;border:1px solid #b3261e;border-radius:8px;color:#b3261e;background:#fff"></div>
+<script>
+function showFatal(msg){var f=document.getElementById('fatal');if(!f)return;var b=document.getElementById('boot');if(b)b.style.display='none';f.style.display='block';f.innerHTML='<b>Não foi possível carregar o sistema.</b><br>'+String(msg).replace(/</g,'&lt;')+'<br><small>Tente Ctrl+F5. Se persistir, envie um print desta mensagem ao suporte.</small>';}
+window.addEventListener('error',function(e){if(!window.__ready)showFatal(e.message||'erro de script');});
+window.addEventListener('unhandledrejection',function(e){if(!window.__ready)showFatal((e.reason&&e.reason.message)||e.reason);});
+setTimeout(function(){if(!window.__ready)showFatal('Tempo esgotado ao iniciar (verifique a conexão).');},10000);
+</script>
 <section id="login" class="hidden">
   <form class="login-box" id="loginForm">
     <h1>Unidasul ESG Fornecedores</h1>
@@ -73,9 +81,10 @@ a{color:var(--brand)}a.btn{display:inline-block;text-decoration:none}
   <main id="view"></main>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="./vendor/supabase.js"></script>
+<script src="./vendor/xlsx.full.min.js"></script>
+<script src="./vendor/chart.umd.js"></script>
+<script>if(!window.supabase)showFatal("A biblioteca de acesso (supabase) não carregou.");</script>
 <script type="module" src="./src/app.js"></script>
 </body>
 </html>
