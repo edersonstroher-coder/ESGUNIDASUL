@@ -48,7 +48,7 @@ export async function dashboard(V) {
     const head = (t) => `<table class="tbl"><thead><tr><th>${t}</th><th>Fornec.</th><th>Avaliados</th><th>ESG</th><th>E</th><th>S</th><th>G</th><th>Críticos</th><th>Sem avaliação</th></tr></thead><tbody>`;
     const today = new Date(), soon = D.camps.filter((c) => c.status === 'ativa' && c.end_date && (new Date(c.end_date) - today) / 864e5 <= 15 && new Date(c.end_date) >= today);
     const alerts = [
-      exp && `🔴 ${exp} documento(s) vencido(s)`, near && `🟠 ${near} documento(s) vencendo em até 90 dias`, nPend && `🟡 ${nPend} pendência(s) aberta(s)`,
+      exp && `🔴 ${exp} documento(s) vencido(s)`, near && `🟠 ${near} documento(s) a vencer`, nPend && `🟡 ${nPend} pendência(s) aberta(s)`,
       A.filter((a) => a.status === 'em_andamento').length && `🟡 ${A.filter((a) => a.status === 'em_andamento').length} avaliação(ões) incompleta(s)`,
       A.filter((a) => a.status === 'nao_iniciada').length && `⚪ ${A.filter((a) => a.status === 'nao_iniciada').length} fornecedor(es) sem resposta`,
       ...soon.map((c) => `⏰ Campanha "${esc(c.name)}" encerra em ${fdate(c.end_date)}`)].filter(Boolean);

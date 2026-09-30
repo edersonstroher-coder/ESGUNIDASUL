@@ -13,7 +13,7 @@ export const num = (v) => (v == null ? null : Number(v));
 
 export const STATE_LABEL = { sim: 'Sim', nao: 'Não', parcial: 'Parcial', nao_informado: 'Não informado', nao_aplicavel: 'Não aplicável' };
 export const EV_LABEL = { pendente: '🟡 Pendente de análise', validada: '🟢 Validada', reprovada: '🔴 Reprovada', correcao: '🟠 Correção solicitada', nao_aplicavel: '⚪ Não aplicável' };
-export const VALID_LABEL = { valido: '🟢 Válido', vence_90: '🟡 Vence em até 90 dias', vence_30: '🟠 Vence em até 30 dias', vencido: '🔴 Vencido', sem_validade: '—' };
+export const VALID_LABEL = { valido: '🟢 Válido', vence_90: '🟡 A vencer (médio prazo)', vence_30: '🟠 A vencer (curto prazo)', vencido: '🔴 Vencido', sem_validade: '—' };
 export const STATUS_LABEL = { conforme: '🟢 Conforme', em_acompanhamento: '🟡 Em acompanhamento', plano_de_acao: '🟠 Plano de ação', critico: '🔴 Crítico', sem_avaliacao: '⚪ Sem avaliação' };
 export const ASSESS_LABEL = { nao_iniciada: 'Não iniciada', em_andamento: 'Em andamento', enviada: 'Enviada', em_validacao: 'Em validação', concluida: 'Concluída' };
 

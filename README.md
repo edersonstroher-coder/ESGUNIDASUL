@@ -4,8 +4,8 @@ Sistema web de avaliação ESG de fornecedores (HTML/JS + Supabase). Cadastro me
 
 ## Como colocar no ar
 1. **Supabase**: crie o projeto. No **SQL Editor** rode, nesta ordem:
-   `supabase/migrations/001_schema.sql` → `002_campaigns_portal.sql` → `003_users_email_delete.sql` → (opcional) `supabase/seed_demo.sql`.
-   > Se rodar o 001 de novo, rode o 002 e o 003 em seguida (eles redefinem funções e políticas).
+   `supabase/migrations/001_schema.sql` → `002_campaigns_portal.sql` → `003_users_email_delete.sql` → `004_settings_recalc.sql` → (opcional) `supabase/seed_demo.sql`.
+   > Se rodar o 001 de novo, rode o 002, o 003 e o 004 em seguida (eles redefinem funções e políticas).
 2. **Settings → API → Exposed schemas**: adicione `core` e `esg`.
 3. **Primeiro administrador**: crie o usuário em Authentication → Users e rode:
    ```sql
@@ -34,7 +34,7 @@ Cadastrar fornecedores (formulário ou importação) → criar campanha → sele
 - Comprador: o campo é opcional e não é usado na avaliação (a avaliação é do fornecedor).
 - Excluir campanha: botão na página da campanha (admin), com confirmação pelo nome; remove respostas, evidências (inclusive os arquivos) e scores, e mantém os fornecedores.
 - Lembretes: só o controle (datas e contagem); não há envio automático de e-mail. Estrutura pronta para automatizar depois.
-- Limites de validade 30/90 dias estão na view `esg.v_evidence_validity` (o setting `expiry_alert_days` ainda não é lido por ela).
+- Tela **Configurações** (admin): pesos E/S/G, pontuação das respostas, qualidade da evidência (checkbox), faixas de classificação, dias de alerta de vencimento, limite e tipos de evidência, lembretes e botão "Recalcular todos os scores". Mudanças só valem para novos cálculos até recalcular. Os alertas de vencimento leem `expiry_alert_days` (migração 004).
 - Relatório PDF via impressão do navegador. A "carteira" de reconhecimento usa o botão de imprimir dos Destaques.
 - Upload do fornecedor: a Edge Function registra a evidência antes do arquivo terminar de subir; se o upload falhar, sobra um registro sem arquivo (tratável na validação: "Reprovar").
 - Integração futura: tabela `core.module_scores` e cadastro mestre em `core.suppliers`.

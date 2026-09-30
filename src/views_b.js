@@ -78,28 +78,80 @@ export async function questions(V) {
   };
 }
 
-/* ---------- Configurações ---------- */
-function validateSetting(key, v) {
-  if (key === 'dimension_weights') { if (!['E', 'S', 'G'].every((d) => typeof v[d] === 'number' && v[d] >= 0) || v.E + v.S + v.G <= 0) return 'Informe E, S e G numéricos (≥ 0) com soma maior que 0.'; }
-  if (key === 'status_thresholds') { if (!(v.conforme > v.acompanhamento && v.acompanhamento > v.plano_acao)) return 'Use conforme > acompanhamento > plano_acao.'; }
-  if (key === 'evidence_factors') { if (!['declarado', 'comprovado', 'validado'].every((d) => typeof v[d] === 'number' && v[d] >= 0)) return 'Informe fatores numéricos (≥ 0) para declarado, comprovado e validado.'; }
-  if (key === 'answer_scores') { if (!['sim', 'parcial', 'nao'].every((d) => typeof v[d] === 'number' && v[d] >= 0 && v[d] <= 1)) return 'Pontuações de sim/parcial/nao devem estar entre 0 e 1.'; }
-  return null;
-}
+/* ---------- Configurações (formulários, sem JSON) ---------- */
+const n2 = (v) => (v === '' || v == null ? NaN : Number(v));
+const pc = (x) => Math.round(Number(x) * 10000) / 100;      // 0.5 -> 50
+const card = (title, help, body, id) => `<div class="card"><b>${title}</b><p class="sub">${help}</p>${body}<p><button class="btn" data-save="${id}">Salvar</button> <span class="sub" id="ok_${id}"></span></p></div>`;
+const num = (id, label, v, extra = '') => `<div><label for="${id}">${label}</label><input id="${id}" type="number" step="any" value="${esc(v)}" ${extra}></div>`;
+
 export async function config(V) {
-  const { data, error } = await esg().from('settings').select('*').order('key');
-  if (error) { V.innerHTML = errBox(error); return; }
-  V.innerHTML = `<h2>Configurações</h2><p class="sub">Tudo que afeta score, classificação e alertas fica aqui, sem mexer no código. Valores marcados DEMO são provisórios.</p>` +
-    data.map((s) => `<div class="card"><b>${esc(s.key)}</b><p class="sub">${esc(s.description || '')}</p><textarea data-s="${esc(s.key)}" rows="${Math.min(10, JSON.stringify(s.value, null, 2).split('\n').length + 1)}" style="width:100%;font-family:monospace">${esc(JSON.stringify(s.value, null, 2))}</textarea><p><button class="btn" data-k="${esc(s.key)}">Salvar</button></p></div>`).join('');
-  V.querySelectorAll('[data-k]').forEach((b) => (b.onclick = async () => {
-    let v; try { v = JSON.parse(V.querySelector(`[data-s="${b.dataset.k}"]`).value); } catch { return alert('JSON inválido.'); }
-    const bad = validateSetting(b.dataset.k, v); if (bad) return alert(bad);
-    const { error: er } = await esg().from('settings').update({ value: v, updated_at: new Date().toISOString() }).eq('key', b.dataset.k);
-    if (er) alert(er.message); else { await settings(true); b.textContent = 'Salvo ✓'; setTimeout(() => (b.textContent = 'Salvar'), 1500); }
+  V.innerHTML = '<h2>Configurações</h2><p class="sub">Carregando…</p>';
+  let cfg;
+  try { cfg = await settings(true); } catch (e) { V.innerHTML = errBox(e); return; }
+  const w = cfg.dimension_weights || { E: 35, S: 35, G: 30 }, a = cfg.answer_scores || { sim: 1, parcial: 0.5, nao: 0 };
+  const f = cfg.evidence_factors || { declarado: 1, comprovado: 1, validado: 1 }, t = cfg.status_thresholds || { conforme: 80, acompanhamento: 60, plano_acao: 40 };
+  const d = cfg.expiry_alert_days || [90, 30], evOn = ['declarado', 'comprovado', 'validado'].some((k) => Number(f[k]) !== 1);
+  V.innerHTML = `<h2>Configurações</h2><p class="sub">Tudo que afeta o score e os alertas. Os pesos de cada indicador ficam na tela <a href="#/kpis">KPIs ESG</a>. Valores iniciais são provisórios (DEMO): a Unidasul define os oficiais.</p>
+    ${card('Peso de cada dimensão no score geral', 'O sistema converte em percentual automaticamente (não precisa somar 100).',
+      `<div class="row">${num('w_E', 'E — Ambiental', w.E, 'min="0"')}${num('w_S', 'S — Social', w.S, 'min="0"')}${num('w_G', 'G — Governança', w.G, 'min="0"')}</div><p class="sub" id="wsum"></p>`, 'w')}
+    ${card('Pontuação de cada resposta', 'Quantos % dos pontos do indicador a resposta vale. "Não informado" e "Não aplicável" ficam fora do cálculo (não viram zero).',
+      `<div class="row">${num('a_sim', 'Sim (%)', pc(a.sim), 'min="0" max="100"')}${num('a_parcial', 'Parcial (%)', pc(a.parcial), 'min="0" max="100"')}${num('a_nao', 'Não (%)', pc(a.nao), 'min="0" max="100"')}</div>`, 'a')}
+    ${card('Qualidade da evidência no score', 'Desmarcado: a resposta vale o mesmo com ou sem evidência. Marcado: o valor da resposta é multiplicado conforme o nível da evidência. O score de cada dimensão é limitado a 100%.',
+      `<label style="font-weight:400"><input type="checkbox" id="ev_on" style="width:auto" ${evOn ? 'checked' : ''}> Considerar a qualidade da evidência no score</label>
+       <div class="row" id="ev_box" style="${evOn ? '' : 'display:none'}">${num('ev_declarado', 'Declarado (%)', pc(f.declarado), 'min="0"')}${num('ev_comprovado', 'Comprovado (%)', pc(f.comprovado), 'min="0"')}${num('ev_validado', 'Validado (%)', pc(f.validado), 'min="0"')}</div>`, 'ev')}
+    ${card('Classificação do fornecedor', 'Score mínimo para cada status. Abaixo da última faixa o fornecedor fica Crítico.',
+      `<div class="row">${num('t_conforme', '🟢 Conforme a partir de (%)', t.conforme, 'min="0" max="100"')}${num('t_acompanhamento', '🟡 Em acompanhamento a partir de (%)', t.acompanhamento, 'min="0" max="100"')}${num('t_plano', '🟠 Plano de ação a partir de (%)', t.plano_acao, 'min="0" max="100"')}</div>`, 't')}
+    ${card('Alertas de vencimento de documentos', 'Quantos dias antes do vencimento o documento muda de cor.',
+      `<div class="row">${num('d_medio', '🟡 Alerta amarelo: vence em até (dias)', d[0], 'min="1"')}${num('d_curto', '🟠 Alerta laranja: vence em até (dias)', d[1], 'min="1"')}</div>`, 'd')}
+    ${card('Evidências', 'Limite de tamanho por arquivo e tipos de evidência disponíveis (um por linha).',
+      `<div class="row">${num('u_mb', 'Tamanho máximo por arquivo (MB)', cfg.max_upload_mb ?? 20, 'min="1"')}<div style="flex-basis:100%"><label for="u_types">Tipos de evidência</label><textarea id="u_types" rows="5">${esc((cfg.evidence_types || []).join('\n'))}</textarea></div></div>`, 'u')}
+    ${card('Lembretes', 'Intervalo padrão até o próximo lembrete ao fornecedor.', `<div class="row">${num('r_days', 'Dias entre lembretes', cfg.reminder_interval_days ?? 7, 'min="1"')}</div>`, 'r')}
+    <div class="card"><b>Aplicar aos resultados já calculados</b><p class="sub">Mudanças de peso, pontuação, evidência e cobertura só valem para novos cálculos. Este botão recalcula todas as avaliações com a configuração atual (o histórico de cálculos anteriores é mantido).</p>
+      <button class="btn" id="recalc">Recalcular todos os scores agora</button> <span class="sub" id="ok_recalc"></span></div>`;
+
+  const val = (id) => n2($('#' + id).value);
+  const sumTxt = () => { const e = val('w_E'), s = val('w_S'), g = val('w_G'), t = e + s + g;
+    $('#wsum').textContent = t > 0 ? `Resultado: E ${(100 * e / t).toFixed(1)}% · S ${(100 * s / t).toFixed(1)}% · G ${(100 * g / t).toFixed(1)}%` : ''; };
+  ['w_E', 'w_S', 'w_G'].forEach((i) => ($('#' + i).oninput = sumTxt)); sumTxt();
+  $('#ev_on').onchange = () => ($('#ev_box').style.display = $('#ev_on').checked ? '' : 'none');
+
+  const BUILD = {
+    w: () => { const v = { E: val('w_E'), S: val('w_S'), G: val('w_G') };
+      if (Object.values(v).some((x) => !(x >= 0)) || v.E + v.S + v.G <= 0) return 'Informe os três pesos (zero ou mais), com soma maior que zero.'; return ['dimension_weights', v]; },
+    a: () => { const v = { sim: val('a_sim'), parcial: val('a_parcial'), nao: val('a_nao') };
+      if (Object.values(v).some((x) => !(x >= 0 && x <= 100))) return 'Cada pontuação deve estar entre 0 e 100.'; return ['answer_scores', { sim: v.sim / 100, parcial: v.parcial / 100, nao: v.nao / 100 }]; },
+    ev: () => { if (!$('#ev_on').checked) return ['evidence_factors', { declarado: 1, comprovado: 1, validado: 1 }];
+      const v = { declarado: val('ev_declarado'), comprovado: val('ev_comprovado'), validado: val('ev_validado') };
+      if (Object.values(v).some((x) => !(x >= 0))) return 'Informe os três percentuais (zero ou mais).'; return ['evidence_factors', { declarado: v.declarado / 100, comprovado: v.comprovado / 100, validado: v.validado / 100 }]; },
+    t: () => { const v = { conforme: val('t_conforme'), acompanhamento: val('t_acompanhamento'), plano_acao: val('t_plano') };
+      if (Object.values(v).some((x) => !(x >= 0 && x <= 100)) || !(v.conforme > v.acompanhamento && v.acompanhamento > v.plano_acao)) return 'Use faixas entre 0 e 100 em ordem decrescente: Conforme > Em acompanhamento > Plano de ação.'; return ['status_thresholds', v]; },
+    d: () => { const m = val('d_medio'), c = val('d_curto');
+      if (!(Number.isInteger(m) && Number.isInteger(c) && c >= 1 && m > c)) return 'Informe dias inteiros, com o alerta amarelo maior que o laranja.'; return ['expiry_alert_days', [m, c]]; },
+    u: () => { const mb = val('u_mb'), types = $('#u_types').value.split('\n').map((x) => x.trim()).filter(Boolean);
+      if (!(mb >= 1)) return 'O tamanho máximo deve ser de ao menos 1 MB.'; if (!types.length) return 'Informe ao menos um tipo de evidência.'; return [['max_upload_mb', mb], ['evidence_types', types]]; },
+    r: () => { const v = val('r_days'); if (!(Number.isInteger(v) && v >= 1)) return 'Informe um número inteiro de dias (1 ou mais).'; return ['reminder_interval_days', v]; },
+  };
+  V.querySelectorAll('[data-save]').forEach((b) => (b.onclick = async () => {
+    const id = b.dataset.save, r = BUILD[id](), msg = $('#ok_' + id);
+    if (typeof r === 'string') { msg.className = 'err'; msg.textContent = r; return; }
+    b.disabled = true;
+    for (const [key, value] of Array.isArray(r[0]) ? r : [r]) {
+      const { error } = await esg().from('settings').update({ value, updated_at: new Date().toISOString() }).eq('key', key);
+      if (error) { msg.className = 'err'; msg.textContent = error.message; b.disabled = false; return; }
+    }
+    await settings(true); b.disabled = false; msg.className = 'sub'; msg.textContent = 'Salvo ✓ (vale para novos cálculos; use "Recalcular" para aplicar aos existentes)';
   }));
+  $('#recalc').onclick = async () => {
+    if (!confirm('Recalcular todas as avaliações com a configuração atual?')) return;
+    $('#recalc').disabled = true; $('#ok_recalc').textContent = 'Calculando…';
+    const { data, error } = await esg().rpc('recalculate_all');
+    $('#recalc').disabled = false; $('#ok_recalc').className = error ? 'err' : 'sub'; $('#ok_recalc').textContent = error ? error.message : `${data} avaliações recalculadas ✓`;
+  };
 }
 
 /* ---------- Destaques ESG ---------- */
+const METRICS = [['score_total', 'Score ESG geral'], ['score_e', 'Ambiental (E)'], ['score_s', 'Social (S)'], ['score_g', 'Governança (G)'], ['cov_questionnaire', 'Cobertura do questionário'], ['cov_evidence', 'Cobertura de evidências'], ['cov_validated', 'Cobertura validada'], ['evolution', 'Evolução em relação ao ciclo anterior']];
+const DEFAULT_LABEL = { score_total: 'Maior score ESG', score_e: 'Destaque ambiental', score_s: 'Destaque social', score_g: 'Destaque governança', cov_questionnaire: 'Maior cobertura do questionário', cov_evidence: 'Maior cobertura de evidências', cov_validated: 'Maior cobertura validada', evolution: 'Maior evolução' };
 export async function highlights(V) {
   V.innerHTML = '<h2>Destaques ESG Unidasul</h2><p class="sub">Carregando…</p>';
   try {
@@ -116,12 +168,16 @@ export async function highlights(V) {
     V.innerHTML = `<div class="noprint"><h2>Destaques ESG Unidasul</h2><p class="sub">Ranking do ciclo ${year}. Critérios, período e cobertura mínima são configuráveis.</p></div>
       <h2 style="display:none" class="printonly">FORNECEDOR DESTAQUE ESG — ${year}</h2>${cards || '<div class="card">Nenhum critério configurado.</div>'}
       <div class="noprint"><button class="btn ghost" onclick="window.print()">Imprimir reconhecimento</button></div>
-      ${can('admin') ? `<div class="card noprint" style="margin-top:16px"><b>Critérios (JSON)</b><p class="sub">year: ciclo (null = mais recente) · limit: quantos por critério · min_coverage: cobertura mínima do questionário · metric: score_total, score_e, score_s, score_g, cov_questionnaire, cov_evidence, cov_validated ou evolution.</p><textarea id="hj" rows="14" style="width:100%;font-family:monospace">${esc(JSON.stringify(hc, null, 2))}</textarea><p><button class="btn" id="hsv">Salvar critérios</button></p></div>` : ''}`;
+      ${can('admin') ? `<div class="card noprint" style="margin-top:16px"><b>Configurar destaques</b><p class="sub">Escolha o ciclo, quantos fornecedores aparecem por ranking e quais rankings exibir.</p>
+        <div class="row"><div><label>Ciclo (vazio = mais recente)</label><input id="hy" type="number" value="${hc.year ?? ''}"></div><div><label>Quantos por ranking</label><input id="hl" type="number" min="1" value="${hc.limit || 3}"></div><div><label>Cobertura mínima do questionário (%)</label><input id="hm" type="number" min="0" max="100" value="${hc.min_coverage || 0}"></div></div>
+        <table class="tbl" style="margin-top:10px"><thead><tr><th>Exibir</th><th>Ranking</th><th>Título na tela</th></tr></thead><tbody>${METRICS.map(([m, l]) => { const c = hc.criteria.find((x) => x.metric === m); return `<tr><td><input type="checkbox" data-m="${m}" ${c ? 'checked' : ''} style="width:auto"></td><td>${l}</td><td><input data-l="${m}" value="${esc(c?.label || DEFAULT_LABEL[m])}"></td></tr>`; }).join('')}</tbody></table>
+        <p><button class="btn" id="hsv">Salvar destaques</button></p></div>` : ''}`;
     const sv = $('#hsv');
     if (sv) sv.onclick = async () => {
-      let v; try { v = JSON.parse($('#hj').value); } catch { return alert('JSON inválido.'); }
-      if (!Array.isArray(v.criteria)) return alert('Informe a lista "criteria".');
-      const { error } = await esg().from('settings').update({ value: v, updated_at: new Date().toISOString() }).eq('key', 'highlight_criteria');
+      const limit = Number($('#hl').value), minc = Number($('#hm').value || 0), y = $('#hy').value === '' ? null : Number($('#hy').value);
+      if (!(limit >= 1) || !(minc >= 0 && minc <= 100)) return alert('Informe quantidade (1 ou mais) e cobertura entre 0 e 100.');
+      const criteria = METRICS.filter(([m]) => V.querySelector(`[data-m="${m}"]`).checked).map(([m]) => ({ key: 'top_' + m, label: V.querySelector(`[data-l="${m}"]`).value.trim() || DEFAULT_LABEL[m], metric: m }));
+      const { error } = await esg().from('settings').update({ value: { year: y, limit, min_coverage: minc, criteria }, updated_at: new Date().toISOString() }).eq('key', 'highlight_criteria');
       if (error) alert(error.message); else highlights(V);
     };
   } catch (e) { V.innerHTML = errBox(e); }
