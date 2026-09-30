@@ -1,4 +1,4 @@
-import { esg, $, esc, state, can, pct, fdate, EV_LABEL, VALID_LABEL, ASSESS_LABEL, all, suppliers, evActions, bindEvActions, uniq, options, errBox } from './lib.js';
+import { sb, esg, $, esc, state, can, pct, fdate, EV_LABEL, VALID_LABEL, ASSESS_LABEL, all, suppliers, evActions, bindEvActions, uniq, options, errBox } from './lib.js';
 
 const stat = (l, v, c = '') => `<div class="stat ${c}"><b>${v}</b>${l}</div>`;
 const portalBase = () => new URL('portal.html', location.href).href.split('?')[0] + '?t=';
@@ -42,29 +42,44 @@ async function campaignPage(V, id) {
     const done = n((a) => ['enviada', 'em_validacao', 'concluida'].includes(a.status));
     const back = new Set(ev.filter((e) => ass.some((a) => a.id === e.assessment_id)).map((e) => e.assessment_id)).size;
     const admin = can('admin', 'gestor'), invited = new Set(cs.map((x) => x.supplier_id));
-    V.innerHTML = `<p><a href="#/campanhas">← Campanhas</a></p><h2>${esc(c.name)}</h2><p class="sub">Ciclo ${c.cycle_year} · ${fdate(c.start_date)} a ${fdate(c.end_date)} · ${esc(c.status)}</p>
+    V.innerHTML = `<p><a href="#/campanhas">← Campanhas</a></p><h2>${esc(c.name)} ${can('admin') ? '<button class="btn ghost" id="cdel" style="float:right;color:var(--bad);border-color:var(--bad)">Excluir campanha</button>' : ''}</h2><p class="sub">Ciclo ${c.cycle_year} · ${fdate(c.start_date)} a ${fdate(c.end_date)} · ${esc(c.status)}</p>
       <div class="stats">${stat('Convidados', cs.length)}${stat('Respondidos', done, 'ok')}${stat('Em andamento', n((a) => a.status === 'em_andamento'))}${stat('Enviados', n((a) => a.status === 'enviada'))}${stat('Validados', n((a) => a.status === 'concluida'), 'ok')}${stat('Devolvidos p/ correção', back, 'warn')}${stat('Não responderam', n((a) => a.status === 'nao_iniciada'), 'bad')}${stat('Adesão', pct(cs.length ? 100 * done / cs.length : null))}</div>
-      ${admin ? `<div class="card"><b>Selecionar fornecedores</b><div class="row" style="margin-top:8px"><div><label>Buscar</label><input id="pq"></div><div><label>Comprador</label><select id="pb">${options(uniq([...sup.values()].map((s) => s.buyer)), '', 'Todos')}</select></div><div><label>Categoria</label><select id="pc">${options(uniq([...sup.values()].map((s) => s.category)), '', 'Todas')}</select></div><div><label>Grupo</label><select id="pg">${options(uniq([...sup.values()].map((s) => s.supplier_group)), '', 'Todos')}</select></div></div>
+      ${admin ? `<div class="card"><b>Selecionar fornecedores</b><div class="row" style="margin-top:8px"><div><label>Buscar</label><input id="pq"></div><div><label>Categoria</label><select id="pc">${options(uniq([...sup.values()].map((s) => s.category)), '', 'Todas')}</select></div><div><label>Grupo</label><select id="pg">${options(uniq([...sup.values()].map((s) => s.supplier_group)), '', 'Todos')}</select></div></div>
         <div id="plist" class="scroll" style="max-height:300px;margin-top:10px"></div><p><button class="btn ghost" id="pall">Marcar todos os filtrados</button> <button class="btn" id="pinv">Convidar selecionados</button></p><div id="links"></div></div>` : ''}
       <div class="card scroll"><b>Lembretes e acompanhamento</b><table class="tbl"><thead><tr><th>Fornecedor</th><th>Convite</th><th>Último lembrete</th><th>Próximo</th><th>Qtd.</th><th>Status</th><th></th></tr></thead><tbody>${cs.map((x) => `<tr><td>${esc(sup.get(x.supplier_id)?.company_name)}</td><td>${fdate(x.invited_at?.slice(0, 10))}</td><td>${fdate(x.last_reminder_at?.slice(0, 10))}</td><td>${fdate(x.next_reminder_at?.slice(0, 10))}</td><td>${x.reminder_count}</td><td>${ASSESS_LABEL[am.get(x.supplier_id)?.status] || '—'}</td>
         <td>${admin ? `<a href="#" data-r="${x.supplier_id}">Registrar lembrete</a> · <a href="#" data-l="${x.supplier_id}">Novo link</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+    const del = $('#cdel');
+    if (del) del.onclick = async () => {
+      const typed = prompt(`Isso apaga a campanha, as respostas, evidências e scores dela (os fornecedores permanecem). Não há como desfazer.\n\nPara confirmar, digite o nome da campanha:\n${c.name}`);
+      if (typed === null) return;
+      if (typed.trim() !== c.name.trim()) return alert('O nome digitado não confere. Nada foi excluído.');
+      const { data: paths, error: er } = await esg().rpc('delete_campaign', { p_campaign: id });
+      if (er) return alert(er.message);
+      for (let i = 0; i < (paths || []).length; i += 100) await sb.storage.from('evidences').remove(paths.slice(i, i + 100));
+      location.hash = '#/campanhas';
+    };
     if (!admin) return;
     const picked = new Set();
     const cand = () => {
-      const q = $('#pq').value.toLowerCase(), b = $('#pb').value, cat = $('#pc').value, g = $('#pg').value;
-      return [...sup.values()].filter((s) => !invited.has(s.id) && (!b || s.buyer === b) && (!cat || s.category === cat) && (!g || s.supplier_group === g) && (!q || (s.company_name + ' ' + s.supplier_code + ' ' + s.cnpj).toLowerCase().includes(q)));
+      const q = $('#pq').value.toLowerCase(), cat = $('#pc').value, g = $('#pg').value;
+      return [...sup.values()].filter((s) => !invited.has(s.id) && (!cat || s.category === cat) && (!g || s.supplier_group === g) && (!q || (s.company_name + ' ' + s.supplier_code + ' ' + s.cnpj).toLowerCase().includes(q)));
     };
     const drawList = () => {
       const L = cand();
       $('#plist').innerHTML = `<table class="tbl"><tbody>${L.slice(0, 300).map((s) => `<tr><td style="width:30px"><input type="checkbox" data-p="${s.id}" ${picked.has(s.id) ? 'checked' : ''} style="width:auto"></td><td>${esc(s.company_name)}</td><td>${esc(s.category)}</td></tr>`).join('')}</tbody></table>${L.length > 300 ? `<p class="sub">Mostrando 300 de ${L.length}. Use "Marcar todos os filtrados".</p>` : ''}`;
       $('#plist').querySelectorAll('[data-p]').forEach((i) => (i.onchange = () => (i.checked ? picked.add(i.dataset.p) : picked.delete(i.dataset.p))));
     };
-    ['#pq', '#pb', '#pc', '#pg'].forEach((s) => ($(s).oninput = drawList)); drawList();
+    ['#pq', '#pc', '#pg'].forEach((s) => ($(s).oninput = drawList)); drawList();
     $('#pall').onclick = () => { cand().forEach((s) => picked.add(s.id)); drawList(); };
     const showLinks = (rows) => {
-      const base = portalBase(), data = rows.map((r) => [sup.get(r.out_supplier)?.company_name, sup.get(r.out_supplier)?.cnpj, base + r.out_token]);
-      $('#links').innerHTML = `<div class="card"><b>Links gerados</b><p class="sub">Guarde agora: por segurança o sistema só armazena o hash e não mostra o link de novo (use "Novo link" para gerar outro).</p><button class="btn" id="dl">Baixar CSV com links</button></div>`;
-      $('#dl').onclick = () => csvDownload('links-fornecedores.csv', [['fornecedor', 'cnpj', 'link'], ...data]);
+      const base = portalBase(), data = rows.map((r) => [sup.get(r.out_supplier)?.company_name, sup.get(r.out_supplier)?.cnpj, sup.get(r.out_supplier)?.email, base + r.out_token]);
+      const subj = encodeURIComponent('Programa ESG de Fornecedores - questionário');
+      const mail = (r) => { const s = sup.get(r.out_supplier), link = base + r.out_token;
+        const body = encodeURIComponent(`Olá,\n\nA Unidasul convida ${s.company_name} a responder o questionário do Programa ESG de Fornecedores.\n\nAcesse pelo link pessoal abaixo (você pode salvar e continuar depois):\n${link}\n\nAtenciosamente,\nUnidasul`);
+        return s.email ? `<a href="mailto:${esc(s.email)}?subject=${subj}&body=${body}">Abrir e-mail</a>` : '<small>sem e-mail cadastrado</small>'; };
+      $('#links').innerHTML = `<div class="card"><b>Links gerados</b><p class="sub">Guarde agora: por segurança o sistema só armazena o hash e não mostra o link de novo (use "Novo link" para gerar outro). "Abrir e-mail" abre seu programa de e-mail com a mensagem pronta.</p>
+        <button class="btn" id="dl">Baixar CSV com links</button><div class="scroll" style="margin-top:10px"><table class="tbl"><tbody>${rows.map((r) => `<tr><td>${esc(sup.get(r.out_supplier)?.company_name)}</td><td>${esc(sup.get(r.out_supplier)?.email || '')}</td><td>${mail(r)}</td></tr>`).join('')}</tbody></table></div></div>`;
+      $('#dl').onclick = () => csvDownload('links-fornecedores.csv', [['fornecedor', 'cnpj', 'email', 'link'], ...data]);
     };
     $('#pinv').onclick = async () => {
       if (!picked.size) return alert('Selecione ao menos um fornecedor.');

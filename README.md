@@ -4,21 +4,22 @@ Sistema web de avaliação ESG de fornecedores (HTML/JS + Supabase). Cadastro me
 
 ## Como colocar no ar
 1. **Supabase**: crie o projeto. No **SQL Editor** rode, nesta ordem:
-   `supabase/migrations/001_schema.sql` → `002_campaigns_portal.sql` → (opcional) `supabase/seed_demo.sql`.
-   > Se rodar o 001 de novo, rode o 002 em seguida (ele redefine funções).
+   `supabase/migrations/001_schema.sql` → `002_campaigns_portal.sql` → `003_users_email_delete.sql` → (opcional) `supabase/seed_demo.sql`.
+   > Se rodar o 001 de novo, rode o 002 e o 003 em seguida (eles redefinem funções e políticas).
 2. **Settings → API → Exposed schemas**: adicione `core` e `esg`.
 3. **Primeiro administrador**: crie o usuário em Authentication → Users e rode:
    ```sql
    insert into core.profiles (id, full_name, role) select id, 'Seu nome', 'admin' from auth.users where email = 'SEU_EMAIL';
    ```
-   Outros perfis: `gestor`, `comprador` (preencha `buyer_name` igual ao campo Comprador dos fornecedores), `validador`.
-4. **Edge Function do portal** (upload de evidências pelo fornecedor):
-   `supabase functions deploy portal-upload --no-verify-jwt`
+   Os demais usuários são criados na tela **Usuários** (somente admin). Perfis: `admin`, `gestor`, `comprador` (somente leitura de todos os fornecedores) e `validador`.
+4. **Edge Functions** (pela CLI ou em Supabase → Edge Functions → Deploy a new function → Via Editor, colando o `index.ts`):
+   - `portal-upload` (upload de evidências pelo fornecedor): `supabase functions deploy portal-upload --no-verify-jwt`
+   - `admin-users` (tela Usuários): `supabase functions deploy admin-users` (mantenha a verificação de JWT ligada)
 5. **Frontend**: preencha `src/config.js` (URL e anon key). Publique a pasta na Vercel (projeto estático, sem build) ou teste local com `npx serve .` — precisa de servidor HTTP, não abre por `file://` (usa ES Modules).
 6. Portal do fornecedor: `portal.html?t=TOKEN` (os links saem em CSV ao convidar fornecedores).
 
 ## Fluxo de uso
-Importar fornecedores → criar campanha → selecionar e convidar (baixar CSV de links) → fornecedor responde no portal → equipe valida evidências → score E/S/G e coberturas recalculados automaticamente → dashboard, histórico, relatório (Imprimir → salvar PDF) e destaques.
+Cadastrar fornecedores (formulário ou importação) → criar campanha → selecionar e convidar (baixar CSV de links) → fornecedor responde no portal → equipe valida evidências → score E/S/G e coberturas recalculados automaticamente → dashboard, histórico, relatório (Imprimir → salvar PDF) e destaques.
 
 ## O que foi verificado
 - As duas migrações e o seed rodaram sem erro em PostgreSQL 16 local (com stubs de `auth`/`storage`).
@@ -29,6 +30,9 @@ Importar fornecedores → criar campanha → selecionar e convidar (baixar CSV d
 ## Decisões e limites conhecidos
 - Score, cobertura e classificação vivem no banco e leem `esg.settings`/`esg.kpis`. Valores em `settings` são **DEMO** (pesos 35/35/30, sim=1/parcial=0,5/não=0, faixas 80/60/40). Fatores de evidência 1/1/1 = regra de bônus preparada, desativada.
 - Uma resposta consolidada por KPI (a pergunta ativa de menor ordem é a exibida).
+- Envio do link: o sistema gera o link e o CSV, e o botão "Abrir e-mail" abre seu programa de e-mail com a mensagem pronta (usa o e-mail do fornecedor). Envio automático pelo servidor exige um serviço de e-mail (ex.: Resend/Brevo) com domínio validado pela TI; não está implementado.
+- Comprador: o campo é opcional e não é usado na avaliação (a avaliação é do fornecedor).
+- Excluir campanha: botão na página da campanha (admin), com confirmação pelo nome; remove respostas, evidências (inclusive os arquivos) e scores, e mantém os fornecedores.
 - Lembretes: só o controle (datas e contagem); não há envio automático de e-mail. Estrutura pronta para automatizar depois.
 - Limites de validade 30/90 dias estão na view `esg.v_evidence_validity` (o setting `expiry_alert_days` ainda não é lido por ela).
 - Relatório PDF via impressão do navegador. A "carteira" de reconhecimento usa o botão de imprimir dos Destaques.

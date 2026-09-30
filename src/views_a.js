@@ -21,7 +21,7 @@ export async function dashboard(V) {
   const F = { demo: !list.some((s) => !s.is_demo), year: '', buyer: '', cat: '', grp: '' };
 
   const draw = () => {
-    const S = list.filter((s) => (F.demo || !s.is_demo) && (!F.buyer || s.buyer === F.buyer) && (!F.cat || s.category === F.cat) && (!F.grp || s.supplier_group === F.grp));
+    const S = list.filter((s) => (F.demo || !s.is_demo) && (!F.cat || s.category === F.cat) && (!F.grp || s.supplier_group === F.grp));
     const ids = new Set(S.map((s) => s.id));
     const H = D.hist.filter((h) => ids.has(h.supplier_id));
     const cur = F.year ? new Map(H.filter((h) => String(h.cycle_year) === F.year).map((h) => [h.supplier_id, h])) : latestPer(H);
@@ -54,7 +54,6 @@ export async function dashboard(V) {
     V.innerHTML = `<h2>Dashboard executivo</h2><p class="sub">Visão geral do programa ESG de fornecedores.</p>
       <div class="card"><div class="row">
         <div><label>Ano/ciclo</label><select id="fy">${options(uniq(D.hist.map((h) => h.cycle_year)), F.year, 'Mais recente')}</select></div>
-        <div><label>Comprador</label><select id="fb">${options(uniq(list.map((s) => s.buyer)), F.buyer, 'Todos')}</select></div>
         <div><label>Categoria</label><select id="fc">${options(uniq(list.map((s) => s.category)), F.cat, 'Todas')}</select></div>
         <div><label>Grupo</label><select id="fg">${options(uniq(list.map((s) => s.supplier_group)), F.grp, 'Todos')}</select></div>
         <div><label><input type="checkbox" id="fd" ${F.demo ? 'checked' : ''} style="width:auto"> Incluir dados DEMO</label></div></div></div>
@@ -64,7 +63,6 @@ export async function dashboard(V) {
       <div class="card"><b>Alertas</b>${alerts.length ? '<ul>' + alerts.map((a) => `<li>${a}</li>`).join('') + '</ul>' : '<p class="sub">Nenhum alerta no momento.</p>'}</div>
       <div class="row"><div class="card"><b>Evolução do programa</b><canvas id="ch1" height="160"></canvas></div>
         <div class="card"><b>Status ESG (classificação operacional)</b><canvas id="ch2" height="160"></canvas><p class="sub">Sem avaliação: ${S.length - R.length}</p></div></div>
-      <div class="card scroll"><b>Por comprador</b>${head('Comprador')}${group('buyer')}</tbody></table></div>
       <div class="card scroll"><b>Por categoria</b>${head('Categoria')}${group('category')}</tbody></table></div>`;
 
     const yrs = uniq(H.map((h) => h.cycle_year));
@@ -72,7 +70,7 @@ export async function dashboard(V) {
     chart('ch1', { type: 'line', data: { labels: yrs, datasets: [{ label: 'ESG', data: by('score_total'), borderColor: '#1f5d46' }, { label: 'E', data: by('score_e'), borderColor: '#4c9a2a' }, { label: 'S', data: by('score_s'), borderColor: '#c98a1b' }, { label: 'G', data: by('score_g'), borderColor: '#2a5d9a' }] }, options: { scales: { y: { min: 0, max: 100 } } } });
     chart('ch2', { type: 'doughnut', data: { labels: ['Conforme', 'Em acompanhamento', 'Plano de ação', 'Crítico'], datasets: [{ data: Object.values(st), backgroundColor: ['#1f7a4d', '#e0b400', '#d9822b', '#b3261e'] }] } });
     const bind = (id, k) => ($(id).onchange = (e) => { F[k] = e.target.value; draw(); });
-    bind('#fy', 'year'); bind('#fb', 'buyer'); bind('#fc', 'cat'); bind('#fg', 'grp');
+    bind('#fy', 'year'); bind('#fc', 'cat'); bind('#fg', 'grp');
     $('#fd').onchange = (e) => { F.demo = e.target.checked; draw(); };
   };
   draw();
@@ -94,7 +92,7 @@ export async function supplierPage(V, id) {
     const cnt = (v) => E.filter((e) => e.validity_status === v).length;
     const last = AS.slice().sort((a, b) => (b.cycle_year - a.cycle_year))[0];
     V.innerHTML = `<h2>${esc(sup.company_name)} ${sup.is_demo ? '<span class="tag">DEMO</span>' : ''}</h2>
-      <p class="sub">CNPJ ${esc(sup.cnpj || '—')} · Código ${esc(sup.supplier_code || '—')} · ${esc(sup.category || 'sem categoria')} · Comprador: ${esc(sup.buyer || '—')}</p>
+      <p class="sub">CNPJ ${esc(sup.cnpj || '—')} · Código ${esc(sup.supplier_code || '—')} · ${esc(sup.category || 'sem categoria')}${sup.email ? ' · ' + esc(sup.email) : ''}</p>
       <div class="card"><b>Status ESG:</b> ${STATUS_LABEL[classify(h ? Number(h.score_total) : null, cfg.status_thresholds)]}
         <div class="stats">${card('Score ESG', pct(h?.score_total))}${card('Ambiental', pct(h?.score_e))}${card('Social', pct(h?.score_s))}${card('Governança', pct(h?.score_g))}
         ${card('Indicadores respondidos', pct(h?.cov_questionnaire))}${card('Evidências apresentadas', pct(h?.cov_evidence))}${card('Evidências validadas', pct(h?.cov_validated))}</div></div>
@@ -102,7 +100,7 @@ export async function supplierPage(V, id) {
       <div class="card"><b>Ações</b><div class="row" style="margin-top:8px">
         ${can('admin', 'gestor') ? `<select id="nc"><option value="">Iniciar avaliação em…</option>${free.map((c) => `<option value="${c.id}" data-y="${c.cycle_year}">${esc(c.name)}</option>`).join('')}</select>` : ''}
         ${last ? `<a class="btn ghost" href="#/avaliacao/${last.id}">Ver questionário / evidências</a>` : ''}
-        <a class="btn ghost" href="#/historico/${id}">Ver histórico</a><a class="btn" href="#/relatorio/${id}">Gerar relatório</a></div></div>
+        ${can('admin') ? `<a class="btn ghost" href="#/fornecedor-editar/${id}">Editar cadastro</a>` : ''}<a class="btn ghost" href="#/historico/${id}">Ver histórico</a><a class="btn" href="#/relatorio/${id}">Gerar relatório</a></div></div>
       <div class="card scroll"><b>Pendências</b>${P.length ? `<table class="tbl"><tbody>${P.map((p) => `<tr><td>${esc(p.title)}</td><td>${esc(p.status)}</td><td>${fdate(p.due_date)}</td></tr>`).join('')}</tbody></table>` : '<p class="sub">Nenhuma pendência.</p>'}</div>
       <div class="card scroll"><b>Histórico de avaliações</b>${(hist.data || []).length ? `<table class="tbl"><thead><tr><th>Ciclo</th><th>Campanha</th><th>ESG</th><th>E</th><th>S</th><th>G</th><th>Cobertura</th></tr></thead><tbody>${hist.data.map((x) => `<tr><td>${x.cycle_year}</td><td>${esc(cn.get(x.campaign_id)?.name)}</td><td>${pct(x.score_total)}</td><td>${pct(x.score_e)}</td><td>${pct(x.score_s)}</td><td>${pct(x.score_g)}</td><td>${pct(x.cov_questionnaire)}</td></tr>`).join('')}</tbody></table>` : '<p class="sub">Sem avaliações ainda.</p>'}</div>`;
     const nc = $('#nc');

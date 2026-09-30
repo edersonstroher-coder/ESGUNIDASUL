@@ -3,6 +3,7 @@ import { normCnpj, isValidCnpj } from './cnpj.js';
 import * as A from './views_a.js';
 import * as B from './views_b.js';
 import * as C from './views_c.js';
+import * as U from './views_d.js';
 
 let profile = null;
 
@@ -10,9 +11,9 @@ const MENU = [
   ['dashboard', 'Dashboard'], ['fornecedores', 'Fornecedores'], ['importar', 'Importar fornecedores', 'admin'],
   ['campanhas', 'Campanhas ESG'], ['questionarios', 'Questionários'], ['avaliacoes', 'Avaliações'],
   ['evidencias', 'Evidências'], ['kpis', 'KPIs ESG'], ['pendencias', 'Pendências'],
-  ['relatorios', 'Relatórios'], ['destaques', 'Destaques ESG'], ['historico', 'Histórico'], ['config', 'Configurações', 'admin'],
+  ['relatorios', 'Relatórios'], ['destaques', 'Destaques ESG'], ['historico', 'Histórico'], ['config', 'Configurações', 'admin'], ['usuarios', 'Usuários', 'admin'],
 ];
-const ALIAS = { fornecedor: 'fornecedores', avaliacao: 'avaliacoes', relatorio: 'relatorios' };
+const ALIAS = { 'fornecedor-novo': 'fornecedores', 'fornecedor-editar': 'fornecedores', fornecedor: 'fornecedores', avaliacao: 'avaliacoes', relatorio: 'relatorios' };
 
 /* ---------- autenticação ---------- */
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -54,6 +55,8 @@ function route() {
     dashboard: () => A.dashboard(V), fornecedores: () => viewSuppliers(), fornecedor: () => A.supplierPage(V, arg),
     importar: () => (profile.role === 'admin' ? viewImport() : viewSuppliers()), avaliacoes: () => A.assessments(V), avaliacao: () => A.assessmentPage(V, arg),
     historico: () => A.history(V, arg), relatorios: () => A.reportsList(V), relatorio: () => A.report(V, arg),
+    'fornecedor-novo': () => (profile.role === 'admin' ? U.supplierForm(V) : viewSuppliers()), 'fornecedor-editar': () => (profile.role === 'admin' ? U.supplierForm(V, arg) : viewSuppliers()),
+    usuarios: () => (profile.role === 'admin' ? U.users(V) : viewSuppliers()),
     kpis: () => B.kpis(V), questionarios: () => B.questions(V), config: () => B.config(V), destaques: () => B.highlights(V),
     campanhas: () => C.campaigns(V, arg), evidencias: () => C.evidences(V), pendencias: () => C.pendencias(V),
   };
@@ -63,14 +66,14 @@ function route() {
 /* ---------- fornecedores ---------- */
 function viewSuppliers() {
   $('#view').innerHTML = `<h2>Fornecedores</h2><p class="sub">Cadastro mestre. Busque por código, CNPJ, razão social ou nome fantasia.</p>
-    <div class="card"><div class="row"><div><label for="q">Buscar</label><input id="q" placeholder="Ex.: 1234, 11222333000181, Alfa"></div></div></div>
+    <div class="card"><div class="row"><div><label for="q">Buscar</label><input id="q" placeholder="Ex.: 1234, 11222333000181, Alfa"></div>${profile.role === 'admin' ? '<a class="btn" href="#/fornecedor-novo">Novo fornecedor</a>' : ''}</div></div>
     <div class="card scroll" id="list">Carregando…</div>`;
   let t; $('#q').oninput = () => { clearTimeout(t); t = setTimeout(loadSuppliers, 300); };
   loadSuppliers();
 }
 async function loadSuppliers() {
   const q = $('#q').value.trim().replace(/[,()%]/g, ' ');
-  let req = core().from('suppliers').select('id,supplier_code,cnpj,company_name,trade_name,buyer,category,is_demo')
+  let req = core().from('suppliers').select('id,supplier_code,cnpj,company_name,trade_name,email,category,is_demo')
     .is('deleted_at', null).order('company_name').limit(200);
   if (q) {
     const d = q.replace(/\D/g, '');
@@ -78,8 +81,8 @@ async function loadSuppliers() {
   }
   const { data, error } = await req;
   if (error) { $('#list').textContent = 'Erro ao carregar: ' + error.message; return; }
-  $('#list').innerHTML = data.length ? `<table class="tbl"><thead><tr><th>Código</th><th>CNPJ</th><th>Razão social</th><th>Comprador</th><th>Categoria</th></tr></thead><tbody>` +
-    data.map((s) => `<tr><td>${esc(s.supplier_code)}</td><td>${esc(s.cnpj)}</td><td><a href="#/fornecedor/${s.id}">${esc(s.company_name)}</a> ${s.is_demo ? '<span class="tag">DEMO</span>' : ''}<br><small>${esc(s.trade_name)}</small></td><td>${esc(s.buyer)}</td><td>${esc(s.category)}</td></tr>`).join('') +
+  $('#list').innerHTML = data.length ? `<table class="tbl"><thead><tr><th>Código</th><th>CNPJ</th><th>Razão social</th><th>E-mail</th><th>Categoria</th></tr></thead><tbody>` +
+    data.map((s) => `<tr><td>${esc(s.supplier_code)}</td><td>${esc(s.cnpj)}</td><td><a href="#/fornecedor/${s.id}">${esc(s.company_name)}</a> ${s.is_demo ? '<span class="tag">DEMO</span>' : ''}<br><small>${esc(s.trade_name)}</small></td><td>${esc(s.email)}</td><td>${esc(s.category)}</td></tr>`).join('') +
     '</tbody></table>' + (data.length === 200 ? '<p class="sub">Mostrando os 200 primeiros. Refine a busca.</p>' : '')
     : 'Nenhum fornecedor encontrado. Use "Importar fornecedores" para carregar sua base.';
 }
@@ -87,7 +90,7 @@ async function loadSuppliers() {
 /* ---------- importação ---------- */
 const FIELDS = [
   ['supplier_code', 'Código do fornecedor', /c[oó]d/i], ['cnpj', 'CNPJ', /cnpj/i], ['company_name', 'Razão social', /raz[aã]o|nome$|^nome/i],
-  ['trade_name', 'Nome fantasia', /fantasia/i], ['buyer', 'Comprador', /comprador/i], ['category', 'Categoria', /categ/i],
+  ['trade_name', 'Nome fantasia', /fantasia/i], ['email', 'E-mail', /e-?mail/i], ['buyer', 'Comprador (opcional, não usado)', /comprador/i], ['category', 'Categoria', /categ/i],
   ['department', 'Departamento', /depart/i], ['supplier_group', 'Grupo', /grupo/i], ['status', 'Status', /status|situa/i],
 ];
 let imp = { rows: [], headers: [], map: {}, recs: [], file: '' };
