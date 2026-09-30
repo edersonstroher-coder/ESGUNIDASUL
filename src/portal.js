@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, FN_PORTAL_UPLOAD } from './config.js';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const rpc = (fn, args) => sb.schema('esg').rpc(fn, args);
@@ -124,7 +124,7 @@ async function upload(btn) {
   if (!EXT.includes(ext)) { msg.textContent = 'Formato não permitido.'; return; }
   btn.disabled = true; msg.textContent = 'Enviando…';
   try {
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/portal-upload`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/${FN_PORTAL_UPLOAD}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
       body: JSON.stringify({ token, kpi_id: k, filename: f.name, size: f.size, doc_date: document.querySelector(`[data-dd="${k}"]`).value, valid_until: document.querySelector(`[data-vu="${k}"]`).value, evidence_type: btn.dataset.t }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Falha no envio');
     const up = await sb.storage.from('evidences').uploadToSignedUrl(j.path, j.token, f); if (up.error) throw up.error;

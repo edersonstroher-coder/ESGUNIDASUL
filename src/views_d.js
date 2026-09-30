@@ -1,13 +1,14 @@
 import { sb, core, $, esc, all, suppliers, errBox } from './lib.js';
 import { normCnpj, isValidCnpj } from './cnpj.js';
+import { FN_ADMIN_USERS } from './config.js';
 
 /* ---------- Usuários (admin) ---------- */
 async function fn(body) {
-  const { data, error } = await sb.functions.invoke('admin-users', { body });
+  const { data, error } = await sb.functions.invoke(FN_ADMIN_USERS, { body });
   if (error) {
     let msg = error.message;
     try { const j = await error.context.json(); if (j.error) msg = j.error; } catch { /* mantém msg */ }
-    throw new Error(msg.includes('Failed to send') || msg.includes('non-2xx') ? 'A função admin-users não respondeu. Ela foi publicada no Supabase?' : msg);
+    throw new Error(msg.includes('Failed to send') || msg.includes('non-2xx') ? `A função "${FN_ADMIN_USERS}" não respondeu. Confira o nome (slug) dela em Supabase > Edge Functions e o valor FN_ADMIN_USERS em src/config.js.` : msg);
   }
   return data;
 }
