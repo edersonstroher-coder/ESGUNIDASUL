@@ -149,6 +149,9 @@ export async function assessmentPage(V, id) {
       <div class="card"><div class="row"><div><b>Status:</b> ${edit ? `<select id="ast">${Object.entries(ASSESS_LABEL).map(([k, v]) => `<option value="${k}" ${k === a.status ? 'selected' : ''}>${v}</option>`).join('')}</select>` : ASSESS_LABEL[a.status]}</div>
         <div><b>Classificação:</b> ${STATUS_LABEL[classify(h ? Number(h.score_total) : null, cfg.status_thresholds)]}</div></div>
         <div class="stats">${card('Score ESG', pct(h?.score_total))}${card('E', pct(h?.score_e))}${card('S', pct(h?.score_s))}${card('G', pct(h?.score_g))}${card('Cobertura', pct(h?.cov_questionnaire))}${card('Evidências', pct(h?.cov_evidence))}${card('Validadas', pct(h?.cov_validated))}</div></div>` +
+      `<div class="card"><b>📘 Programa ESG próprio do fornecedor</b><p class="sub">Documento(s) do programa ESG do próprio fornecedor, para análise de equivalência com os indicadores. Não altera o score automaticamente: a equipe avalia e registra o resultado nas respostas e observações dos indicadores.</p>
+        ${(ev.data || []).filter((e) => !e.kpi_id).map((e) => `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">📎 ${esc(e.original_name)} · ${EV_LABEL[e.status]} · ${VALID_LABEL[e.validity_status]} ${e.valid_until ? '(até ' + fdate(e.valid_until) + ')' : ''}${e.note ? '<br><small>Obs.: ' + esc(e.note) + '</small>' : ''}<div style="margin-top:6px">${evActions(e)}</div></div>`).join('') || '<p class="sub">Nenhum programa anexado.</p>'}
+        ${edit ? `<div class="row" style="margin-top:10px"><div><label>Anexar programa ESG</label><input type="file" data-f="programa"></div><div><label>Data / ano de referência</label><input type="date" data-dd="programa"></div><div><label>Validade</label><input type="date" data-vu="programa"></div><button class="btn" data-up="programa">Enviar</button></div>` : ''}</div>` +
       (kp.data || []).map((k) => {
         const q = qm.get(k.id), r = am.get(k.id), es = (ev.data || []).filter((e) => e.kpi_id === k.id);
         return `<div class="card"><b>[${k.dimension}] ${esc(k.code)} · ${esc(k.name)}</b><p class="sub">${esc(q?.question || k.description || '')}</p>
@@ -172,11 +175,12 @@ export async function assessmentPage(V, id) {
       const ext = f.name.split('.').pop().toLowerCase();
       if (!EXTS.includes(ext)) return alert('Formato não permitido. Use: ' + EXTS.join(', '));
       if (f.size > (Number(cfg.max_upload_mb) || 20) * 1048576) return alert('Arquivo acima do limite de ' + (cfg.max_upload_mb || 20) + ' MB.');
+      const isProg = k === 'programa';
       const path = `${a.supplier_id}/${id}/${k}/${crypto.randomUUID()}.${ext}`;
       b.disabled = true;
       const up = await sb.storage.from('evidences').upload(path, f);
       if (up.error) { b.disabled = false; return alert(up.error.message); }
-      const { error: e } = await esg().from('evidences').insert({ assessment_id: id, supplier_id: a.supplier_id, kpi_id: k, evidence_type: V.querySelector(`[data-t="${k}"]`).value, original_name: f.name, storage_path: path, doc_date: V.querySelector(`[data-dd="${k}"]`).value || null, valid_until: V.querySelector(`[data-vu="${k}"]`).value || null, uploaded_by: state.profile.id });
+      const { error: e } = await esg().from('evidences').insert({ assessment_id: id, supplier_id: a.supplier_id, kpi_id: isProg ? null : k, is_esg_program: isProg, evidence_type: isProg ? 'Programa ESG próprio' : V.querySelector(`[data-t="${k}"]`).value, original_name: f.name, storage_path: path, doc_date: V.querySelector(`[data-dd="${k}"]`).value || null, valid_until: V.querySelector(`[data-vu="${k}"]`).value || null, uploaded_by: state.profile.id });
       if (e) { b.disabled = false; return alert(e.message); }
       again();
     }));

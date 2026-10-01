@@ -4,8 +4,8 @@ Sistema web de avaliação ESG de fornecedores (HTML/JS + Supabase). Cadastro me
 
 ## Como colocar no ar
 1. **Supabase**: crie o projeto. No **SQL Editor** rode, nesta ordem:
-   `supabase/migrations/001_schema.sql` → `002_campaigns_portal.sql` → `003_users_email_delete.sql` → `004_settings_recalc.sql` → (opcional) `supabase/seed_demo.sql`.
-   > Se rodar o 001 de novo, rode o 002, o 003 e o 004 em seguida (eles redefinem funções e políticas).
+   `supabase/migrations/001_schema.sql` → `002_campaigns_portal.sql` → `003_users_email_delete.sql` → `004_settings_recalc.sql` → `005_esg_program.sql` → (opcional) `supabase/seed_demo.sql`.
+   > Se rodar o 001 de novo, rode o 002 a 005 em seguida (não reexecute o 004 depois do 005) (eles redefinem funções e políticas).
 2. **Settings → API → Exposed schemas**: adicione `core` e `esg`.
 3. **Primeiro administrador**: crie o usuário em Authentication → Users e rode:
    ```sql
@@ -30,6 +30,7 @@ Cadastrar fornecedores (formulário ou importação) → criar campanha → sele
 ## Decisões e limites conhecidos
 - Score, cobertura e classificação vivem no banco e leem `esg.settings`/`esg.kpis`. Valores em `settings` são **DEMO** (pesos 35/35/30, sim=1/parcial=0,5/não=0, faixas 80/60/40). Fatores de evidência 1/1/1 = regra de bônus preparada, desativada.
 - Uma resposta consolidada por KPI (a pergunta ativa de menor ordem é a exibida).
+- Programa ESG próprio: o fornecedor pode anexar o programa/relatório ESG completo (etapa Evidências do portal) e a equipe também pode anexar na avaliação. Passa pela mesma validação das evidências, mas **não altera score nem coberturas** por si só; a regra de equivalência com os KPIs é decisão da Unidasul. Requer republicar a função `portal-upload` (código atualizado).
 - Envio do link: o sistema gera o link e o CSV, e o botão "Abrir e-mail" abre seu programa de e-mail com a mensagem pronta (usa o e-mail do fornecedor). Envio automático pelo servidor exige um serviço de e-mail (ex.: Resend/Brevo) com domínio validado pela TI; não está implementado.
 - Comprador: o campo é opcional e não é usado na avaliação (a avaliação é do fornecedor).
 - Excluir campanha: botão na página da campanha (admin), com confirmação pelo nome; remove respostas, evidências (inclusive os arquivos) e scores, e mantém os fornecedores.

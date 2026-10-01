@@ -12,8 +12,9 @@ const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
-    const { token, kpi_id, filename, size, doc_date, valid_until, evidence_type } = await req.json();
-    if (!token || !kpi_id || !filename) return json({ error: 'Dados incompletos' }, 400);
+    const { token, kpi_id, kind, filename, size, doc_date, valid_until, evidence_type } = await req.json();
+    const isProgram = kind === 'program';   // programa ESG próprio do fornecedor (sem KPI)
+    if (!token || !filename || (!isProgram && !kpi_id)) return json({ error: 'Dados incompletos' }, 400);
 
     const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const esg = sb.schema('esg');
@@ -29,16 +30,19 @@ Deno.serve(async (req) => {
     const maxMb = Number(cfg?.value ?? 20);
     if (size && size > maxMb * 1024 * 1024) return json({ error: `Arquivo maior que ${maxMb} MB` }, 400);
 
-    // O KPI precisa existir e estar ativo
-    const { data: k } = await esg.from('kpis').select('id').eq('id', kpi_id).eq('active', true).maybeSingle();
-    if (!k) return json({ error: 'Indicador inválido' }, 400);
+    // O KPI precisa existir e estar ativo (não se aplica ao programa próprio)
+    if (!isProgram) {
+      const { data: k } = await esg.from('kpis').select('id').eq('id', kpi_id).eq('active', true).maybeSingle();
+      if (!k) return json({ error: 'Indicador inválido' }, 400);
+    }
 
-    const path = `${a.supplier_id}/${a.id}/${kpi_id}/${crypto.randomUUID()}.${ext}`;
+    const path = `${a.supplier_id}/${a.id}/${isProgram ? 'programa' : kpi_id}/${crypto.randomUUID()}.${ext}`;
     const { data: up, error: eu } = await sb.storage.from('evidences').createSignedUploadUrl(path);
     if (eu) return json({ error: eu.message }, 500);
 
     const { error: ei } = await esg.from('evidences').insert({
-      assessment_id: a.id, supplier_id: a.supplier_id, kpi_id, evidence_type: evidence_type ?? null,
+      assessment_id: a.id, supplier_id: a.supplier_id, kpi_id: isProgram ? null : kpi_id, is_esg_program: isProgram,
+      evidence_type: isProgram ? 'Programa ESG próprio' : (evidence_type ?? null),
       original_name: String(filename).slice(0, 200), storage_path: path,
       doc_date: doc_date || null, valid_until: valid_until || null, status: 'pendente',
     });

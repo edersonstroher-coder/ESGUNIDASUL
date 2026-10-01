@@ -81,7 +81,12 @@ function render() {
     bindItems(list); bindNav();
   } else if (step === 4) {
     const list = D.items.filter((it) => it.requires_evidence);
-    shell((list.length ? list.map((it) => {
+    const prog = D.evidences.filter((e) => !e.kpi_id);
+    const progCard = `<div class="card"><b>📘 Seu programa ESG próprio (opcional)</b>
+      <p class="sub">Se sua empresa já tem um programa ESG, relatório de sustentabilidade ou conjunto de políticas, anexe o documento completo, mesmo que não siga os mesmos indicadores deste questionário. A equipe da Unidasul vai analisá-lo e poderá considerá-lo na avaliação. Ele não substitui o preenchimento das perguntas.</p>
+      ${prog.map((e) => `<div class="ev">📎 ${esc(e.original_name)} — ${EVST[e.status]}${e.valid_until ? ' · validade ' + new Date(e.valid_until + 'T00:00:00').toLocaleDateString('pt-BR') : ''}${e.note ? `<div class="err">Motivo: ${esc(e.note)}</div>` : ''}</div>`).join('')}
+      ${editable() ? `<label>Arquivo (PDF, Word, Excel ou imagem)</label><input type="file" data-f="programa" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"><label>Data do documento / ano de referência</label><input type="date" data-dd="programa"><label>Validade (se houver)</label><input type="date" data-vu="programa"><p><button class="btn ghost" data-up="programa" data-t="Programa ESG próprio">Enviar programa ESG</button></p><p class="sub" data-msg="programa"></p>` : ''}</div>`;
+    shell(progCard + (list.length ? list.map((it) => {
       const es = D.evidences.filter((e) => e.kpi_id === it.kpi_id);
       return `<div class="card"><b>${esc(it.question)}</b>${it.evidence_mandatory ? '<div class="sub">Evidência obrigatória se a resposta for Sim/Parcial.</div>' : ''}
         ${es.map((e) => `<div class="ev">📎 ${esc(e.original_name)} — ${EVST[e.status]}${e.valid_until ? ' · validade ' + new Date(e.valid_until + 'T00:00:00').toLocaleDateString('pt-BR') : ''}${e.note ? `<div class="err">Motivo: ${esc(e.note)}</div>` : ''}</div>`).join('')}
@@ -125,7 +130,7 @@ async function upload(btn) {
   btn.disabled = true; msg.textContent = 'Enviando…';
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/${FN_PORTAL_UPLOAD}`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
-      body: JSON.stringify({ token, kpi_id: k, filename: f.name, size: f.size, doc_date: document.querySelector(`[data-dd="${k}"]`).value, valid_until: document.querySelector(`[data-vu="${k}"]`).value, evidence_type: btn.dataset.t }) });
+      body: JSON.stringify({ token, kpi_id: k === 'programa' ? null : k, kind: k === 'programa' ? 'program' : 'kpi', filename: f.name, size: f.size, doc_date: document.querySelector(`[data-dd="${k}"]`).value, valid_until: document.querySelector(`[data-vu="${k}"]`).value, evidence_type: btn.dataset.t }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Falha no envio');
     const up = await sb.storage.from('evidences').uploadToSignedUrl(j.path, j.token, f); if (up.error) throw up.error;
     await load(); render();
